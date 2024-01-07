@@ -25,7 +25,7 @@ func main() {
 		key := body["key"].(string)
 		recv_msg := int(body["msg"].(float64))
 
-		// linearizable increment offset increment, then insert msg into seq_kv
+		// linearizable offset increment, then insert msg into seq_kv
 		_ = lin_kv.CompareAndSwap(ctx, fmt.Sprintf("%s-size", key), 0, 0, true)
 		var offset int
 		for {
