@@ -24,6 +24,7 @@ func main() {
 
 		operations := body["txn"].([]interface{})
 		needed_locks := map[string]bool{}
+		uncommitted_vals := map[string]interface{}{}
 
 		// find the locks we need
 		for _, v := range operations {
@@ -51,7 +52,7 @@ func main() {
 			}
 
 			for k := range locked {
-				_ = lin_kv.CompareAndSwap(ctx, fmt.Sprintf("%s-lock", k), 1, 0, true)
+				_ = lin_kv.Write(ctx, fmt.Sprintf("%s-lock", k), 0)
 			}
 			time.Sleep(time.Duration((rand.Intn(50) + 50)) * time.Millisecond)
 		}
@@ -62,7 +63,7 @@ func main() {
 			op_type := op[0].(string)
 			key := fmt.Sprint(op[1])
 			if op_type == "w" {
-				lin_kv.Write(ctx, key, op[2])
+				uncommitted_vals[key] = op[2]
 			} else {
 				val, err := lin_kv.Read(ctx, key)
 				if err == nil {
@@ -71,9 +72,10 @@ func main() {
 			}
 		}
 
-		// free locks
+		// commit and free locks
 		for k := range needed_locks {
-			_ = lin_kv.CompareAndSwap(ctx, fmt.Sprintf("%s-lock", k), 1, 0, true)
+			_ = lin_kv.Write(ctx, k, uncommitted_vals[k])
+			_ = lin_kv.Write(ctx, fmt.Sprintf("%s-lock", k), 0)
 		}
 
 		body["type"] = "txn_ok"
